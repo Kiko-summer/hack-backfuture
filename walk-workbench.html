@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>3D 模型资产工作台 · 光墙探索</title>
+<style>
+  :root { color-scheme: dark; font: 15px/1.5 system-ui, sans-serif; color: #eef4ef; background: #101614; --border: #34423a; --muted: #a6b4aa; --accent: #c5e5a4; }
+  * { box-sizing: border-box; }
+  body { margin: 0; }
+  main { max-width: 1440px; margin: auto; padding: clamp(20px, 4vw, 56px); }
+  header { display: flex; justify-content: space-between; gap: 20px; align-items: start; }
+  .eyebrow { color: var(--accent); font-size: 12px; letter-spacing: .14em; margin: 0; }
+  h1 { font-size: clamp(32px, 5vw, 56px); line-height: 1.1; margin: 8px 0 12px; }
+  p { margin: 0; color: var(--muted); }
+  a { color: var(--accent); text-underline-offset: 4px; white-space: nowrap; }
+  .controls { margin: 28px 0 16px; padding: 12px; border: 1px solid var(--border); border-radius: 12px; display: flex; flex-wrap: wrap; gap: 12px 18px; align-items: center; background: #19211d; }
+  label { display: flex; align-items: center; gap: 8px; }
+  .timeline { flex: 1 1 225px; }
+  input { min-width: 80px; flex: 1; accent-color: var(--accent); }
+  output { min-width: 4ch; font-variant-numeric: tabular-nums; }
+  button, select { min-height: 44px; padding: 0 12px; border-radius: 7px; font: inherit; border: 1px solid var(--border); background: #252f29; color: inherit; }
+  button { cursor: pointer; }
+  button.primary { color: #182111; background: var(--accent); min-width: 86px; font-weight: 650; }
+  button:hover { filter: brightness(1.12); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+  .cards { display: grid; grid-template-columns: minmax(210px, 1fr) minmax(0, 3fr); gap: 14px; }
+  article { overflow: hidden; border: 1px solid var(--border); border-radius: 12px; background: #19211d; }
+  nav { display: grid; align-content: start; gap: 8px; }
+  nav button { text-align: left; padding: 10px 12px; }
+  nav button[aria-pressed="true"] { border-color: #91a976; background: #303e2c; }
+  nav small { display: block; color: var(--muted); }
+  .stage { position: relative; height: clamp(300px, 54vh, 600px); background: #26352f; }
+  canvas { display: block; width: 100%; height: 100%; }
+  .loading { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; padding: 16px; pointer-events: none; }
+  [hidden] { display: none; }
+  .details { padding: 15px 16px 18px; }
+  h2 { margin: 0 0 5px; font-size: 18px; }
+  .note { margin-top: 16px; font-size: 13px; }
+  @media (max-width: 700px) { .cards { grid-template-columns: 1fr; } }
+</style>
+<script>
+  if (location.protocol === 'file:') location.replace('http://127.0.0.1:8765/walk-workbench.html');
+</script>
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}
+</script>
+</head>
+<body>
+<main>
+  <header>
+    <div><p class="eyebrow">光墙探索 / 资产库</p><h1>3D 模型资产工作台</h1><p>选择模型，从不同角度查看。探索者可播放水母湖当前步态。</p></div>
+    <a href="./exploration.html?scene=jellyfish">返回水母湖 ↗</a>
+  </header>
+  <div class="controls" aria-label="动画控制">
+    <label>视角 <select id="view"><option value="side">侧面</option><option value="front">正面</option><option value="back">背面</option><option value="quarter">斜侧面</option></select></label>
+    <button id="play" class="primary" data-walk hidden>暂停</button>
+    <button id="restart" data-walk hidden>回到起步</button>
+    <label data-walk hidden>速度 <select id="rate"><option value=".25">0.25×</option><option value=".5">0.5×</option><option value="1" selected>1×</option></select></label>
+    <label class="timeline" data-walk hidden>步态周期 <input id="phase" type="range" min="0" max="1000" value="0"><output id="percent" for="phase">0%</output></label>
+  </div>
+  <div class="cards">
+    <nav id="assets" aria-label="模型列表"></nav>
+    <article>
+      <div class="stage"><canvas aria-label="模型预览"></canvas><p class="loading" role="status">正在加载模型…</p></div>
+      <div class="details"><h2 id="asset-title">探索者</h2><p id="asset-description"></p></div>
+    </article>
+  </div>
+</main>
+<script type="module">
+const assets = [
+  { name: '探索者', type: '角色 · 动画', file: 'explorer-animated.glb', walk: true,
+    description: '01 · 水母湖当前步态。角色内置 Walk，带游戏里的脚跟落地修正。' },
+  { name: '蓝制服少女', type: '角色 · 模型', file: 'hi3d-蓝制服少女_1.glb' },
+  { name: '苔藓机器人', type: '角色 · 模型', file: 'hi3d-苔藓机器人_1.glb' },
+  { name: '发光踏块', type: '场景道具', file: 'cave-assets/models/luminous-stepping-block.glb' },
+  { name: '电池', type: '场景道具', file: 'hi3d-solar-lantern_2.glb' }
+];
+const notice = document.querySelector('.loading');
+
+try {
+  const [T, { GLTFLoader }, { MeshoptDecoder }] = await Promise.all([
+    import('three'), import('three/addons/loaders/GLTFLoader.js'),
+    import('three/addons/libs/meshopt_decoder.module.js')
+  ]);
+  const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
+  const canvas = document.querySelector('canvas');
+  const renderer = new T.WebGLRenderer({ canvas, antialias: true });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
+  const scene = new T.Scene();
+  scene.background = new T.Color('#26352f');
+  scene.add(new T.HemisphereLight('#f1fffa', '#627264', 2.1));
+  const keyLight = new T.DirectionalLight('#fff3dc', 2.5);
+  keyLight.position.set(3, 5, 4);
+  scene.add(keyLight);
+  const floor = new T.GridHelper(12, 48, '#668577', '#40594d');
+  floor.position.y = -.018;
+  scene.add(floor);
+  const camera = new T.OrthographicCamera(-1, 1, 1, -1, .1, 30);
+  const play = document.querySelector('#play');
+  const view = document.querySelector('#view');
+  const rate = document.querySelector('#rate');
+  const phaseInput = document.querySelector('#phase');
+  const percent = document.querySelector('#percent');
+  const walkControls = document.querySelectorAll('[data-walk]');
+  const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const renderSize = new T.Vector2();
+  const cache = new Map();
+  let selection = 0, active, playing = false, phase = 0, previous = performance.now();
+
+  const buttons = assets.map((asset, index) => {
+    const button = document.createElement('button');
+    const type = document.createElement('small');
+    type.textContent = asset.type;
+    button.append(asset.name, type);
+    button.addEventListener('click', () => selectAsset(index));
+    document.querySelector('#assets').append(button);
+    return button;
+  });
+
+  function updatePlay() { play.textContent = playing ? '暂停' : '播放'; }
+  function updatePhase() {
+    phaseInput.value = Math.round(phase * 1000);
+    percent.value = Math.round(phase * 100) + '%';
+  }
+
+  async function loadAsset(asset) {
+    const { scene: model, animations } = await loader.loadAsync('./' + asset.file);
+    model.updateMatrixWorld(true);
+    const bounds = new T.Box3().setFromObject(model);
+    const dimensions = bounds.getSize(new T.Vector3());
+    const size = Math.max(dimensions.x, dimensions.y, dimensions.z);
+    if (!Number.isFinite(size) || size <= 0) throw new Error('模型尺寸无效');
+    const scale = 1.73 / size;
+    const center = bounds.getCenter(new T.Vector3());
+    model.scale.multiplyScalar(scale);
+    model.position.addScaledVector(new T.Vector3(-center.x, -bounds.min.y, -center.z), scale);
+    model.traverse(object => { if (object.isSkinnedMesh) object.frustumCulled = false; });
+    const preview = { model, targetY: dimensions.y * scale / 2 };
+    if (asset.walk) {
+      const clip = T.AnimationClip.findByName(animations, 'Walk');
+      if (!clip) throw new Error('角色缺少 Walk 动画');
+      preview.mixer = new T.AnimationMixer(model);
+      preview.action = preview.mixer.clipAction(clip).play();
+      preview.duration = clip.duration;
+      preview.feet = ['LeftFoot', 'RightFoot'].map(name => model.getObjectByName(name));
+    }
+    return preview;
+  }
+
+  async function selectAsset(index) {
+    const request = ++selection;
+    const asset = assets[index];
+    buttons.forEach((button, i) => button.setAttribute('aria-pressed', String(i === index)));
+    if (active) scene.remove(active.model);
+    active = undefined;
+    for (const control of walkControls) control.hidden = true;
+    document.querySelector('#asset-title').textContent = asset.name;
+    document.querySelector('#asset-description').textContent = asset.description ?? asset.file;
+    canvas.setAttribute('aria-label', asset.name + '模型预览');
+    view.value = asset.walk ? 'side' : 'quarter';
+    notice.textContent = '正在加载模型…';
+    notice.hidden = false;
+    try {
+      if (!cache.has(index)) {
+        cache.set(index, loadAsset(asset).catch(error => {
+          cache.delete(index);
+          throw error;
+        }));
+      }
+      const preview = await cache.get(index);
+      if (request !== selection) return;
+      active = preview;
+      scene.add(active.model);
+      phase = 0;
+      playing = Boolean(active.action) && !reducedMotion;
+      updatePlay();
+      updatePhase();
+      for (const control of walkControls) control.hidden = !active.action;
+      notice.hidden = true;
+    } catch (error) {
+      if (request === selection) notice.textContent = '模型加载失败，请重新选择此模型';
+      console.error(error);
+    }
+  }
+
+  play.addEventListener('click', () => { playing = !playing; updatePlay(); });
+  document.querySelector('#restart').addEventListener('click', () => { phase = 0; updatePhase(); });
+  phaseInput.addEventListener('input', () => {
+    playing = false;
+    phase = Math.min(.99999, Number(phaseInput.value) / 1000);
+    updatePlay();
+    updatePhase();
+  });
+
+  const angles = { side: Math.PI / 2, front: 0, back: Math.PI, quarter: Math.PI / 4 };
+  renderer.setAnimationLoop(now => {
+    const dt = Math.min(.05, (now - previous) / 1000);
+    previous = now;
+    if (active?.action) {
+      if (playing) {
+        phase = (phase + dt * Number(rate.value) * (1.45 / 1.54) / active.duration) % 1;
+        updatePhase();
+      }
+      active.action.time = phase * active.duration;
+      active.mixer.update(0);
+      active.feet.forEach((foot, index) => {
+        const cycle = (phase + index * .5) % 1;
+        foot?.rotateX(-.105 * Math.max(1 - T.MathUtils.smoothstep(cycle, 0, .12),
+          T.MathUtils.smoothstep(cycle, .77, .98)));
+      });
+    }
+    const width = canvas.clientWidth, height = canvas.clientHeight;
+    renderer.getSize(renderSize);
+    if (renderSize.x !== width || renderSize.y !== height) renderer.setSize(width, height, false);
+    const aspect = width / Math.max(height, 1);
+    const halfHeight = 1.12 * Math.max(1, 1 / aspect);
+    camera.left = -halfHeight * aspect;
+    camera.right = halfHeight * aspect;
+    camera.top = halfHeight;
+    camera.bottom = -halfHeight;
+    camera.updateProjectionMatrix();
+    const angle = angles[view.value];
+    const targetY = active?.targetY ?? .87;
+    camera.position.set(4 * Math.sin(angle), targetY + .3, 4 * Math.cos(angle));
+    camera.lookAt(0, targetY, 0);
+    renderer.render(scene, camera);
+  });
+  selectAsset(0);
+} catch (error) {
+  notice.textContent = '工作台加载失败，请刷新重试';
+  console.error(error);
+}
+</script>
+</body>
+</html>

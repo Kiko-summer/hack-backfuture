@@ -1,0 +1,680 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>光墙探索</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #061216; }
+  canvas { display: block; width: 100%; height: 100%; }
+  .vignette { position: fixed; inset: 0; pointer-events: none; background: radial-gradient(ellipse at 50% 47%, transparent 38%, #020a0ea8 100%); }
+  #status { position: fixed; left: max(24px, env(safe-area-inset-left)); bottom: max(20px, env(safe-area-inset-bottom)); margin: 0; color: #aec4c9; font: 12px/1.6 system-ui, sans-serif; letter-spacing: .08em; }
+  #objective { position: fixed; top: 24px; right: 24px; display: flex; align-items: center; gap: 9px; padding: 8px 11px; border: 1px solid #81968b55; border-radius: 8px; background: #071412df; color: #e5f0e7; font: 13px/1.5 system-ui, sans-serif; }
+  #objective[hidden], #take-battery[hidden] { display: none; }
+  #energy-slots { display: flex; gap: 4px; }
+  #energy-slots i { width: 9px; height: 15px; border: 1px solid #96a99a; border-radius: 2px; }
+  #energy-slots .filled { background: #ffd175; border-color: #ffda91; box-shadow: 0 0 8px #ffc76880; }
+  #take-battery { position: fixed; transform: translate(-50%, -100%); z-index: 1; min-height: 44px; padding: 0 13px; border-radius: 8px; border: 1px solid #ffdb92; background: #18221d; color: #ffe7b8; font: 14px system-ui, sans-serif; cursor: pointer; touch-action: manipulation; }
+  #take-battery:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+  #fade { position: fixed; inset: 0; background: #020609; opacity: 0; pointer-events: none; }
+</style>
+<script>
+  if (location.protocol === 'file:') {
+    location.replace('http://127.0.0.1:8765/exploration.html' + location.search + location.hash);
+  }
+</script>
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}
+</script>
+</head>
+<body>
+<canvas id="scene" aria-label="光幕展厅与地下生态站"></canvas>
+<div class="vignette" aria-hidden="true"></div>
+<div id="fade" aria-hidden="true"></div>
+<p id="status" role="status">正在加载展厅…</p>
+<div id="objective" role="status" hidden>
+  <span>能量收集</span>
+  <span id="energy-slots" aria-hidden="true"><i></i><i></i><i></i></span>
+  <span id="energy-count">0/3</span>
+</div>
+<button id="take-battery" type="button" hidden>取出电池</button>
+<script type="module">
+const status = document.querySelector('#status');
+const canvas = document.querySelector('#scene');
+
+try {
+  const [T, { GLTFLoader }, { Reflector }, { EffectComposer }, { RenderPass }, { UnrealBloomPass }, { OutputPass }, { createCave }, { createJellyfishLake }] =
+    await Promise.all([
+      import('three'),
+      import('three/addons/loaders/GLTFLoader.js'),
+      import('three/addons/objects/Reflector.js'),
+      import('three/addons/postprocessing/EffectComposer.js'),
+      import('three/addons/postprocessing/RenderPass.js'),
+      import('three/addons/postprocessing/UnrealBloomPass.js'),
+      import('three/addons/postprocessing/OutputPass.js'),
+      import('./cave-scene.js'),
+      import('./jellyfish-scene.js')
+    ]);
+  start(T, GLTFLoader, Reflector, EffectComposer, RenderPass, UnrealBloomPass, OutputPass, createCave, createJellyfishLake);
+} catch (error) {
+  status.textContent = '展厅加载失败，请检查网络连接和浏览器的 WebGL 支持。';
+  console.error(error);
+}
+
+function start(T, GLTFLoader, Reflector, EffectComposer, RenderPass, UnrealBloomPass, OutputPass, createCave, createJellyfishLake) {
+  const renderer = new T.WebGLRenderer({ canvas, antialias: true });
+  const scene = new T.Scene();
+  scene.background = new T.Color('#06161d');
+  const camera = new T.PerspectiveCamera(34, 1, .1, 60);
+  camera.position.set(0, 2.25, 17);
+  camera.lookAt(0, 2.85, 0);
+
+  const composer = new EffectComposer(renderer);
+  const renderPass = new RenderPass(scene, camera);
+  composer.addPass(renderPass);
+  composer.addPass(new UnrealBloomPass(new T.Vector2(1, 1), .42, .72, .76));
+  composer.addPass(new OutputPass());
+
+  const wall = new T.MeshStandardMaterial({ color: '#243b45', roughness: .93 });
+  const trim = new T.MeshStandardMaterial({ color: '#0d2028', roughness: .9 });
+
+  function box(material, width, height, depth, x, y, z) {
+    const mesh = new T.Mesh(new T.BoxGeometry(width, height, depth), material);
+    mesh.position.set(x, y, z);
+    scene.add(mesh);
+  }
+
+  box(wall, 16, 9, .4, 0, 4.5, -.25);
+  box(wall, .36, 9, 22, -8, 4.5, 10);
+  box(wall, .36, 9, 22, 8, 4.5, 10);
+  box(wall, 16, .35, 22, 0, 9, 10);
+  for (const y of [.35, 1.6, 3.0, 4.4, 5.8, 7.2]) {
+    box(trim, 15.7, .035, .035, 0, y, 0);
+    for (const x of [-7.8, 7.8]) box(trim, .035, .045, 21, x, y, 10);
+  }
+  for (const x of [-7.0, -4.85, -2.78, 2.78, 4.85, 7.0]) {
+    box(trim, .055, 9, .07, x, 4.5, .02);
+  }
+  box(trim, 4.9, 4.9, .14, 0, 2.9, .09);
+
+  scene.add(new T.HemisphereLight('#7ca9b7', '#182a35', .52));
+  const spill = new T.PointLight('#abdff5', 48, 12, 2);
+  spill.position.set(0, 2.8, 1.7);
+  scene.add(spill);
+
+  const time = { value: 0 };
+  const lightWall = new T.Mesh(new T.PlaneGeometry(4.68, 4.68), new T.ShaderMaterial({
+    uniforms: { uTime: time },
+    vertexShader: `
+      varying vec2 vUv;
+      void main() {
+        vUv = uv;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }`,
+    fragmentShader: `
+      uniform float uTime;
+      varying vec2 vUv;
+
+      float hash(vec2 p) {
+        return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+      }
+      float noise(vec2 p) {
+        vec2 i = floor(p), f = fract(p);
+        f = f * f * (3.0 - 2.0 * f);
+        return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x),
+                   mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y);
+      }
+      float fbm(vec2 p) {
+        float value = 0.0, weight = 0.5;
+        for (int i = 0; i < 4; i++) {
+          value += weight * noise(p);
+          p = mat2(1.62, 1.24, -1.24, 1.62) * p + 2.3;
+          weight *= 0.5;
+        }
+        return value;
+      }
+      float field(vec2 p, float t) {
+        vec2 q = vec2(fbm(p + vec2(t, 0.0)), fbm(p + vec2(5.2, 1.3 - t)));
+        vec2 r = vec2(fbm(p + q * 3.9 + vec2(1.7, 9.2 + t)),
+                      fbm(p + q * 4.2 + vec2(8.3 - t, 2.8)));
+        return fbm(p + 5.0 * r);
+      }
+      void main() {
+        float t = uTime * 0.10;
+        vec2 p = vUv * 3.9;
+        float f = field(p, t);
+        float ridge = 0.5 + 0.5 * sin(f * 30.0 + noise(p * 2.0) * 1.8);
+        float relief = clamp((f - field(p + vec2(0.018, -0.014), t)) * 10.0, -0.24, 0.24);
+        float silk = 0.50 + ridge * 0.35 + f * 0.27 + relief;
+        vec2 edge = min(vUv, 1.0 - vUv);
+        silk *= mix(0.84, 1.0, smoothstep(0.0, 0.035, min(edge.x, edge.y)));
+        gl_FragColor = vec4(vec3(0.48, 0.73, 0.86) * silk + vec3(0.08, 0.12, 0.15), 1.0);
+      }`
+  }));
+  lightWall.position.set(0, 2.9, .17);
+  scene.add(lightWall);
+
+  const baseMirror = Reflector.ReflectorShader;
+  const floor = new Reflector(new T.PlaneGeometry(15.8, 22), {
+    clipBias: .001,
+    textureWidth: 640,
+    textureHeight: 360,
+    multisample: 0,
+    shader: {
+      uniforms: { ...baseMirror.uniforms, uTime: { value: 0 } },
+      vertexShader: baseMirror.vertexShader.replace('varying vec4 vUv;', 'varying vec4 vUv; varying vec2 vFloor;')
+        .replace('vUv =', 'vFloor = position.xy; vUv ='),
+      fragmentShader: `
+        uniform sampler2D tDiffuse;
+        uniform float uTime;
+        varying vec4 vUv;
+        varying vec2 vFloor;
+        void main() {
+          vec2 uv = vUv.xy / vUv.w;
+          float ripple = sin(vFloor.y * 29.0 + vFloor.x * 5.0 + uTime * 1.7)
+                       + sin(vFloor.y * 57.0 - vFloor.x * 8.0 - uTime);
+          uv += vec2(ripple * 0.0024, ripple * 0.0015);
+          vec3 reflection = texture2D(tDiffuse, uv).rgb * 0.50
+                          + texture2D(tDiffuse, uv + vec2(0.0028, 0.0015)).rgb * 0.25
+                          + texture2D(tDiffuse, uv - vec2(0.0028, 0.0015)).rgb * 0.25;
+          gl_FragColor = vec4(vec3(0.006, 0.016, 0.021) + reflection * vec3(0.29, 0.36, 0.40), 1.0);
+        }`
+    }
+  });
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.z = 10;
+  floor.material.uniforms.uTime = time;
+  scene.add(floor);
+
+  const player = new T.Group();
+  player.position.set(0, 0, 3.65);
+  player.rotation.y = Math.PI;
+  scene.add(player);
+
+  const preview = new URLSearchParams(location.search).get('scene');
+  const lakePreview = preview === 'jellyfish';
+  const cave = createCave(T);
+  if (!lakePreview) {
+    import('three/addons/libs/meshopt_decoder.module.js').then(({ MeshoptDecoder }) =>
+      new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).loadAsync('./hi3d-苔藓机器人_1.glb')
+    ).then(({ scene: model }) => cave.placeRobot(model, player)).catch(error => {
+      console.warn('苔藓机器人加载失败', error);
+    });
+  }
+  const fade = document.querySelector('#fade');
+  const objective = document.querySelector('#objective');
+  const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const falling = new T.Scene();
+  falling.background = new T.Color('#04111a');
+  const streaks = new Float32Array(390 * 6);
+  for (let i = 0; i < streaks.length; i += 6) {
+    const angle = Math.random() * Math.PI * 2;
+    const radius = .25 + Math.random() * 8;
+    const y = Math.random() * 37 - 36;
+    streaks.set([Math.cos(angle)*radius,y,Math.sin(angle)*radius,
+      Math.cos(angle)*radius,y+.05+Math.random()*.34,Math.sin(angle)*radius],i);
+  }
+  const streakGeometry = new T.BufferGeometry().setAttribute('position',new T.BufferAttribute(streaks,3));
+  const sparkleSizes = new Float32Array(streaks.length / 3);
+  const sparklePhases = new Float32Array(streaks.length / 3);
+  for (let i=0;i<sparkleSizes.length;i++) {
+    sparkleSizes[i]=.065+Math.random()*.13;
+    sparklePhases[i]=Math.random()*Math.PI*2;
+  }
+  streakGeometry.setAttribute('aSize',new T.BufferAttribute(sparkleSizes,1));
+  streakGeometry.setAttribute('aPhase',new T.BufferAttribute(sparklePhases,1));
+  const streakField = new T.LineSegments(streakGeometry,new T.LineBasicMaterial({
+    color:'#9cecff',transparent:true,opacity:.14,blending:T.AdditiveBlending,depthWrite:false
+  }));
+  falling.add(streakField);
+  const sparks = new T.Points(streakGeometry,cave.makeSparkleMaterial('#e7faff',.92));
+  falling.add(sparks);
+  let lake, aimHintUntil = 0;
+  const lakeHint = '↑ ↓ ← →　移动或对准水母';
+  let chapter = 'hall';
+  let transitionTime = 0;
+  const collectedBatteries = new Set();
+  const energySlots = [...document.querySelectorAll('#energy-slots i')];
+  const energyCount = document.querySelector('#energy-count');
+  const takeBattery = document.querySelector('#take-battery');
+  const buttonPosition = new T.Vector3();
+  const headTarget = new T.Vector3();
+  const defaultBatteryDirection = new T.Vector3(0, 0, 1);
+  const battery = new T.Group();
+  const casing = new T.MeshStandardMaterial({
+    color: '#49645c', emissive: '#29473a', emissiveIntensity: .85, metalness: .35, roughness: .38
+  });
+  const terminal = new T.MeshStandardMaterial({
+    color: '#ffe3a3', emissive: '#ffab3f', emissiveIntensity: 2.4
+  });
+  battery.add(new T.Mesh(new T.BoxGeometry(.25, .37, .19), casing));
+  const cap = new T.Mesh(new T.BoxGeometry(.12, .068, .13), terminal);
+  cap.position.y = .215;
+  battery.add(cap);
+  const band = new T.Mesh(new T.BoxGeometry(.257, .10, .197), terminal);
+  battery.add(band);
+  battery.add(new T.PointLight('#ffbc59', 3.8, 2.2));
+  let batteryFlight, pendingLakeExit = false, batteryReady = false;
+
+  if (!lakePreview) {
+    new GLTFLoader().loadAsync('./hi3d-solar-lantern_2.glb').then(({ scene: model }) => {
+      const bounds = new T.Box3().setFromObject(model);
+      const size = bounds.getSize(new T.Vector3());
+      const scale = .48 / Math.max(size.x, size.y, size.z);
+      if (!Number.isFinite(scale) || scale <= 0) throw new Error('电池模型尺寸无效');
+      model.scale.multiplyScalar(scale);
+      model.position.addScaledVector(bounds.getCenter(new T.Vector3()), -scale);
+      model.traverse(object => {
+        if (!object.isPointLight) return;
+        object.intensity = 1.8;
+        object.distance = 2.2;
+      });
+      battery.clear();
+      battery.add(model);
+    }).catch(error => {
+      console.warn('电池模型加载失败，使用备用外观', error);
+    }).finally(() => {
+      batteryReady = true;
+    });
+  }
+
+  const markerGeometry = new T.OctahedronGeometry(.23);
+  const markerMaterial = new T.MeshStandardMaterial({
+    color: '#ffe2a1', emissive: '#ff9e32', emissiveIntensity: 2.1, roughness: .28
+  });
+
+  function prepareBatteryPoints(area) {
+    for (const point of area.batteryPoints ?? []) {
+      if (!point.marker) {
+        point.marker = new T.Mesh(markerGeometry, markerMaterial);
+        point.marker.scale.set(.85, 1.45, .85);
+        point.marker.position.copy(point.position);
+        point.marker.add(new T.PointLight('#ffac52', 7.5, 3.2));
+        area.scene.add(point.marker);
+      }
+      point.marker.visible = !collectedBatteries.has(point.id);
+    }
+  }
+
+  function activeBatteryPoints() {
+    return (chapter === 'cave' ? cave.batteryPoints : chapter === 'lake' ? lake.batteryPoints : undefined) ?? [];
+  }
+
+  function nearbyBattery() {
+    if (!batteryReady || batteryFlight || pendingLakeExit || collectedBatteries.size >= energySlots.length) return;
+    let nearest, distance = 1.25;
+    for (const point of activeBatteryPoints()) {
+      if (collectedBatteries.has(point.id)) continue;
+      const candidate = Math.hypot(point.position.x - player.position.x, point.position.z - player.position.z);
+      if (candidate < distance) {
+        nearest = point;
+        distance = candidate;
+      }
+    }
+    return nearest;
+  }
+
+  function startBattery() {
+    const point = nearbyBattery();
+    if (!point) return;
+    const origin = (point.releasePosition ?? point.marker?.position ?? point.position).clone();
+    if (point.marker) point.marker.visible = false;
+    battery.position.copy(origin);
+    battery.scale.setScalar(.06);
+    battery.rotation.set(0, 0, 0);
+    renderPass.scene.add(battery);
+    batteryFlight = { id: point.id, origin, direction: point.releaseDirection ?? defaultBatteryDirection, elapsed: 0 };
+    takeBattery.hidden = true;
+  }
+
+  function updateBattery(dt) {
+    if (!batteryFlight) return;
+    const flight = batteryFlight;
+    flight.elapsed += dt;
+    const duration = reducedMotion ? .8 : 1.8;
+    const phase = Math.min(1, flight.elapsed / duration);
+    const emerge = 1 - Math.pow(1 - Math.min(phase / .28, 1), 3);
+    const receive = T.MathUtils.smootherstep(phase, .34, .84);
+    const vanish = T.MathUtils.smoothstep(phase, .84, 1);
+    battery.position.copy(flight.origin);
+    battery.position.addScaledVector(flight.direction, .68 * emerge);
+    battery.position.y += .16 * emerge;
+    headTarget.copy(player.position);
+    headTarget.y += 2.12 - .34 * vanish;
+    headTarget.z += .23;
+    battery.position.lerp(headTarget, receive);
+    if (!reducedMotion) {
+      battery.position.y += Math.sin(receive * Math.PI) * .28;
+      battery.rotation.y = emerge * .7 + receive * 2.1;
+    }
+    battery.scale.setScalar(T.MathUtils.lerp(.06, 1.55, emerge) * (1 - vanish));
+    if (phase < 1) return;
+    battery.removeFromParent();
+    batteryFlight = undefined;
+    collectedBatteries.add(flight.id);
+    const count = collectedBatteries.size;
+    energyCount.textContent = count + '/' + energySlots.length;
+    energySlots.forEach((slot, index) => slot.classList.toggle('filled', index < count));
+  }
+
+  function updateBatteryPrompt() {
+    for (const { position, marker } of activeBatteryPoints()) {
+      if (!marker.visible) continue;
+      marker.rotation.y = time.value * .83;
+      marker.position.y = position.y + Math.sin(time.value * 2.2) * .09;
+    }
+    const point = nearbyBattery();
+    if (!point) {
+      takeBattery.hidden = true;
+      return;
+    }
+    buttonPosition.copy(point.position);
+    buttonPosition.y += .41;
+    camera.updateMatrixWorld();
+    buttonPosition.project(camera);
+    const visible = Math.abs(buttonPosition.x) <= 1 && Math.abs(buttonPosition.y) <= 1
+      && Math.abs(buttonPosition.z) <= 1;
+    takeBattery.hidden = !visible;
+    if (!visible) return;
+    const x = (buttonPosition.x + 1) * innerWidth / 2;
+    const y = (1 - buttonPosition.y) * innerHeight / 2;
+    takeBattery.style.left = Math.round(T.MathUtils.clamp(x, 65, innerWidth - 65)) + 'px';
+    takeBattery.style.top = Math.round(Math.max(48, y)) + 'px';
+  }
+
+  takeBattery.addEventListener('click', startBattery);
+  const cameraTarget = new T.Vector3();
+  const cameraPosition = new T.Vector3();
+  const originalMaterials = new Map();
+  const movementHint = '↑ ↓ ← →　移动';
+  let mixer, idle, walk;
+  let headBone;
+  let leftFootBone, rightFootBone;
+  const hairSway = new T.Vector2();
+  const hairSwayTarget = new T.Vector2();
+  const characterFile = 'explorer-animated.glb';
+  status.textContent = '正在加载人物…';
+  new GLTFLoader().loadAsync('./' + characterFile).then(({ scene: model, animations }) => {
+    const idleClip = T.AnimationClip.findByName(animations, 'Idle');
+    const walkClip = T.AnimationClip.findByName(animations, 'Walk');
+    if (!idleClip || !walkClip) throw new Error('人物模型缺少 Idle 或 Walk 动画');
+    model.updateMatrixWorld(true);
+    const bounds = new T.Box3();
+    const meshBounds = new T.Box3();
+    model.traverse(mesh => {
+      if (!mesh.isMesh) return;
+      mesh.geometry.computeBoundingBox();
+      bounds.union(meshBounds.copy(mesh.geometry.boundingBox).applyMatrix4(mesh.matrixWorld));
+    });
+    const scale = 1.73 / (bounds.max.y - bounds.min.y);
+    if (!Number.isFinite(scale) || scale <= 0) throw new Error('人物模型尺寸无效');
+
+    const center = bounds.getCenter(new T.Vector3());
+    model.scale.multiplyScalar(scale);
+    model.position.addScaledVector(new T.Vector3(-center.x, -bounds.min.y, -center.z), scale);
+    const silhouette = new T.MeshBasicMaterial({ color: '#020609' });
+    model.traverse(mesh => {
+      if (!mesh.isMesh) return;
+      originalMaterials.set(mesh,mesh.material);
+      mesh.material = silhouette;
+      if (mesh.isSkinnedMesh) mesh.frustumCulled = false;
+    });
+    // This model has no dedicated hair bones. A tiny delayed head sway gives
+    // its hair silhouette a soft follow-through without deforming the face.
+    headBone = model.getObjectByName('Head');
+    leftFootBone = model.getObjectByName('LeftFoot');
+    rightFootBone = model.getObjectByName('RightFoot');
+    mixer = new T.AnimationMixer(model);
+    idle = mixer.clipAction(idleClip).play();
+    walk = mixer.clipAction(walkClip).setEffectiveWeight(0);
+    walk.enabled = false;
+    mixer.update(0);
+    player.add(model);
+    if (lakePreview) enterLake();
+    else if (preview === 'battery' || preview === 'cave') enterCave(true);
+    else status.textContent = movementHint;
+  }).catch(error => {
+    status.textContent = '人物加载失败，请通过本地 HTTP 打开页面，并确认 ' + characterFile + ' 可访问。';
+    console.error(error);
+  });
+
+  const arrows = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']);
+  const pressed = new Set();
+  window.addEventListener('keydown', event => {
+    if (event.code === 'KeyE' && !event.repeat) startBattery();
+    if (event.code === 'Space' && chapter === 'lake' && event.target !== takeBattery) {
+      event.preventDefault();
+      if (!event.repeat && lake.jump(player, readDirection()) === false) aimHintUntil = time.value + 1.25;
+      return;
+    }
+    if (!arrows.has(event.key)) return;
+    event.preventDefault();
+    if (!event.repeat && (chapter === 'hall' || chapter === 'cave' || chapter === 'lake')) pressed.add(event.key);
+  });
+  window.addEventListener('keyup', event => pressed.delete(event.key));
+  function clearInput() {
+    pressed.clear();
+  }
+  window.addEventListener('blur', clearInput);
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) clearInput();
+  });
+
+  function resize() {
+    const width = canvas.clientWidth, height = canvas.clientHeight;
+    const ratio = Math.min(window.devicePixelRatio, 1.5);
+    camera.aspect = width / height;
+    const inCave = chapter === 'landing' || chapter === 'cave' || chapter === 'lake';
+    camera.fov = Math.max(inCave ? 46 : 34, T.MathUtils.radToDeg(2 * Math.atan((inCave ? .53 : .23) / camera.aspect)));
+    camera.updateProjectionMatrix();
+    renderer.setPixelRatio(ratio);
+    renderer.setSize(width, height, false);
+    composer.setPixelRatio(ratio);
+    composer.setSize(width, height);
+    if (!inCave) floor.getRenderTarget().setSize(640, Math.min(960, Math.round(640 / camera.aspect)));
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  const velocity = new T.Vector2();
+  const direction = new T.Vector2();
+  function readDirection() {
+    return direction.set(Number(pressed.has('ArrowRight')) - Number(pressed.has('ArrowLeft')),
+      Number(pressed.has('ArrowDown')) - Number(pressed.has('ArrowUp'))).normalize();
+  }
+  const clock = new T.Clock();
+  const walkingSpeed = 1.45;
+  // The reduced leg arc has a slightly shorter stride than the source clip.
+  const walkClipSpeed = 1.54;
+  function lakeCamera(dt) {
+    const { x, z } = player.position;
+    cameraPosition.set(x * .64 + .65, 3.05, z + 5.1);
+    cameraTarget.set(x * .72, .65, z - 3.9);
+    camera.position.lerp(cameraPosition, dt === undefined ? 1 : 1 - Math.exp(-5 * dt));
+    camera.lookAt(cameraTarget);
+  }
+
+  function enterCave(direct = false) {
+    chapter = direct ? 'cave' : 'landing';
+    transitionTime = 0;
+    renderPass.scene = cave.scene;
+    prepareBatteryPoints(cave);
+    cave.scene.add(player);
+    for (const [mesh, material] of originalMaterials) mesh.material = material;
+    const point = cave.batteryPoints[0].position;
+    const x = direct && preview === 'battery' ? point.x - .25 : 0;
+    const z = direct && preview === 'battery' ? point.z + .9 : 0;
+    const y = cave.groundHeight(x, z);
+    player.position.set(x, y, z);
+    player.rotation.y = Math.PI;
+    camera.position.set(x * .78, direct ? y + 1.81 : .93, z + 4.7);
+    cameraTarget.set(x * .85 + .68, y + 1.65, z - 5);
+    camera.lookAt(cameraTarget);
+    resize();
+    canvas.setAttribute('aria-label', '地下生态站的发光草地与园丁机器人');
+    if (direct) {
+      status.textContent = movementHint;
+      objective.hidden = false;
+    }
+  }
+
+  function enterLake() {
+    lake = createJellyfishLake(T, Reflector);
+    chapter = 'lake';
+    renderPass.scene = lake.scene;
+    lake.scene.add(player);
+    for (const [mesh, material] of originalMaterials) mesh.material = material;
+    player.position.copy(lake.spawn);
+    player.rotation.y = Math.PI;
+    velocity.set(0, 0);
+    clearInput();
+    lakeCamera();
+    resize();
+    canvas.setAttribute('aria-label', '地下水母湖');
+    status.textContent = lakeHint;
+    objective.hidden = false;
+    prepareBatteryPoints(lake);
+  }
+
+  let walkWeight = 0;
+  let wasMoving = false;
+  const headOffset = new T.Quaternion();
+  const headOffsetEuler = new T.Euler(0,0,0,'XYZ');
+  renderer.setAnimationLoop(() => {
+    const dt = Math.min(clock.getDelta(), .05);
+    time.value += dt;
+    if (chapter === 'lakeExit') {
+      transitionTime += dt;
+      const progress = Math.min(transitionTime / (reducedMotion ? .14 : .32), 1);
+      fade.style.opacity = progress;
+      if (progress === 1) enterLake();
+    } else if (chapter === 'fall') {
+      transitionTime += dt;
+      const duration = reducedMotion ? .55 : 1.92;
+      const progress = Math.min(transitionTime/duration,1);
+      if (!reducedMotion) {
+        streakField.position.y = sparks.position.y = progress * 20;
+        camera.rotation.z = progress * .13;
+      }
+      sparks.material.uniforms.uTime.value = time.value;
+      fade.style.opacity = Math.max(1-progress*8,T.MathUtils.smoothstep(progress,.72,1));
+      if (progress === 1) enterCave();
+    } else if (chapter === 'landing') {
+      transitionTime += dt;
+      const progress = T.MathUtils.smoothstep(transitionTime,0,reducedMotion ? .28 : 1.05);
+      fade.style.opacity = Math.max(0,1-progress*3);
+      camera.position.y = .93 + .88*progress;
+      camera.lookAt(cameraTarget);
+      if (progress === 1) {
+        chapter = 'cave';
+        status.textContent = movementHint;
+        objective.hidden = false;
+      }
+    } else if (mixer) {
+      readDirection();
+      let speed;
+      if (chapter === 'lake') {
+        const state = lake.update(player, direction, dt, time.value, walkingSpeed, reducedMotion);
+        speed = state.speed;
+        fade.style.opacity = Math.max(0, Number(fade.style.opacity) - dt / (reducedMotion ? .14 : .44));
+        lakeCamera(dt);
+        const hint = state.arrived ? '已抵达对岸' : state.jumping ? '正在跳跃…'
+          : state.selected ? '空格　跳向高亮落点'
+          : time.value < aimHintUntil ? '没有可跳落点，请转向或靠近岸边' : lakeHint;
+        if (status.textContent !== hint) status.textContent = hint;
+      } else {
+        if (direction.lengthSq()) player.rotation.y = Math.atan2(direction.x, direction.y);
+        let x = player.position.x + direction.x * walkingSpeed * dt;
+        let z = player.position.z + direction.y * walkingSpeed * dt;
+        if (chapter === 'hall') {
+          x = T.MathUtils.clamp(x, -4.4, 4.4);
+          z = T.MathUtils.clamp(z, .88, 8.0);
+        } else {
+          if (!cave.canMove(x,player.position.z)) x = player.position.x;
+          if (!cave.canMove(x,z)) z = player.position.z;
+        }
+        const dx = x - player.position.x, dz = z - player.position.z;
+        speed = Math.hypot(dx, dz) / Math.max(dt, .001);
+        player.position.set(x, chapter === 'cave' ? cave.groundHeight(x,z) : 0, z);
+      }
+      velocity.copy(direction).multiplyScalar(speed);
+      walkWeight = T.MathUtils.damp(walkWeight, T.MathUtils.smoothstep(speed, .04, .65), 8, dt);
+      const moving = speed > .06;
+      if (moving && !wasMoving) {
+        // Start on the contact pose so the first visible step lands heel first.
+        walk.reset();
+        walk.enabled = true;
+        walk.play();
+      }
+      walk.setEffectiveWeight(walkWeight).setEffectiveTimeScale(speed / walkClipSpeed);
+      idle.setEffectiveWeight(1 - walkWeight);
+      mixer.update(dt);
+      if (!moving && walkWeight < .015) walk.enabled = false;
+      wasMoving = moving;
+
+      if (moving && walkWeight > .04 && walk.getClip().duration > 0) {
+        const cycle = ((walk.time / walk.getClip().duration) % 1 + 1) % 1;
+        const heelFirstLift = phase => .105 * Math.max(
+          1 - T.MathUtils.smoothstep(phase, 0, .12),
+          T.MathUtils.smoothstep(phase, .77, .98)
+        ) * walkWeight;
+        // The clip begins on left-foot contact; the opposite foot lands half a cycle later.
+        // With +Z as the model's forward axis, a slight negative local X pitch
+        // lifts the toes so the heel reaches the ground first.
+        leftFootBone?.rotateX(-heelFirstLift(cycle));
+        rightFootBone?.rotateX(-heelFirstLift((cycle + .5) % 1));
+      }
+
+      if (headBone) {
+        // Let the head (and attached hair mesh) lag a fraction behind travel.
+        hairSwayTarget.set(-velocity.y * .004, velocity.x * .007);
+        hairSway.x = T.MathUtils.damp(hairSway.x, hairSwayTarget.x, 4, dt);
+        hairSway.y = T.MathUtils.damp(hairSway.y, hairSwayTarget.y, 4, dt);
+        const stepFlutter = moving ? Math.sin(walk.time * Math.PI * 4) * .002 : 0;
+        headOffsetEuler.set(hairSway.x + stepFlutter, 0, hairSway.y, 'XYZ');
+        headOffset.setFromEuler(headOffsetEuler);
+        headBone.quaternion.multiply(headOffset);
+      }
+      if (chapter === 'hall' && player.position.z <= 1.06 && Math.abs(player.position.x) < 1.85 && velocity.y < -.15) {
+        chapter = 'fall';
+        transitionTime = 0;
+        pressed.clear();
+        velocity.set(0,0);
+        walkWeight = 0;
+        walk.setEffectiveWeight(0);
+        idle.setEffectiveWeight(1);
+        mixer.update(0);
+        renderPass.scene = falling;
+        camera.position.set(0,0,2.1);
+        camera.lookAt(0,-9,0);
+        status.textContent = '';
+        fade.style.opacity = 1;
+      } else if (chapter === 'cave') {
+        const { x, z } = player.position;
+        if (speed > .05) cave.leaveTrail(player);
+        cameraPosition.set(x*.78,player.position.y+1.81,z+4.7);
+        cameraTarget.set(x*.85+.68,player.position.y+1.65,z-5);
+        camera.position.lerp(cameraPosition,1-Math.exp(-4.5*dt));
+        camera.lookAt(cameraTarget);
+        const hint = batteryFlight ? '正在收取电池…' : nearbyBattery() ? '点击「取出电池」或按 E'
+          : z < -13 ? '沿暖光走向水域' : movementHint;
+        if (status.textContent !== hint) status.textContent = hint;
+        if (cave.atExit(player)) pendingLakeExit = true;
+        if (pendingLakeExit && !batteryFlight) {
+          pendingLakeExit = false;
+          chapter = 'lakeExit';
+          transitionTime = 0;
+          clearInput();
+        }
+      }
+    }
+    if (chapter === 'landing' || chapter === 'cave') cave.update(time.value,dt,player);
+    updateBattery(dt);
+    updateBatteryPrompt();
+    composer.render();
+  });
+}
+</script>
+</body>
+</html>
