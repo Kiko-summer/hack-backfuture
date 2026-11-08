@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 900" width="1440" height="900">
+  <defs>
+    <linearGradient id="metal" x2="0" y2="1">
+      <stop stop-color="#edf1f5"/><stop offset=".52" stop-color="#d6dce5"/><stop offset="1" stop-color="#b5bfcc"/>
+    </linearGradient>
+    <radialGradient id="light">
+      <stop stop-color="#f8fbfd"/><stop offset=".72" stop-color="#edf2f7" stop-opacity=".72"/><stop offset="1" stop-color="#edf2f7" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="hatch" width="12" height="12" patternUnits="userSpaceOnUse" patternTransform="rotate(43)">
+      <path d="M2 0v12" stroke="#69798c" stroke-opacity=".26" stroke-width="4"/>
+    </pattern>
+    <pattern id="grid" width="24" height="24" patternUnits="userSpaceOnUse">
+      <path d="M24 0H0V24" fill="none" stroke="#69798c" stroke-opacity=".13"/>
+    </pattern>
+    <filter id="grain">
+      <feTurbulence type="fractalNoise" baseFrequency=".85" numOctaves="3" stitchTiles="stitch" seed="7"/>
+    </filter>
+  </defs>
+  <path fill="url(#metal)" d="M0 0h1440v900H0z"/>
+  <ellipse cx="720" cy="414" rx="596" ry="424" fill="url(#light)"/>
+  <path fill="url(#grid)" d="M0 0h1440v900H0z" opacity=".55"/>
+  <path fill="#e9eef5" fill-opacity=".37" stroke="#8a98aa" d="M30 80l38-38h1304l38 38v740l-38 38H68l-38-38z"/>
+  <path fill="url(#hatch)" d="M68 42h1304l20 20H48zM72 815h204l-20 22H52zM1160 815h210l18 22h-250z"/>
+  <g fill="none" stroke="#8696aa" stroke-width="1">
+    <path d="M30 253h154l48 48h106l46 46v166l-73 73H166l-39 39H30M1410 252h-156l-51 51h-117l-37 37v175l73 73h169l37 37h82"/>
+    <path d="M53 274h126l47 47h103l34 35v147l-64 65H161l-39 38H53M1388 274h-125l-52 51h-114l-25 24v156l62 64h166l36 37h52" stroke-opacity=".5"/>
+    <path d="M70 119h223l37 37h120m920-37h-223l-37 37H990M70 761h218l48-48h131m903 48h-218l-48-48H973"/>
+    <path d="M465 243h-34l-38 38v348l38 38h34m510-424h34l38 38v348l-38 38h-34" stroke-dasharray="5 7" opacity=".58"/>
+    <path d="M698 224h44m-22-12v24M698 674h44m-22-12v24" opacity=".52"/>
+  </g>
+  <g fill="#eef3f7" fill-opacity=".72" stroke="#9ca9b8">
+    <path d="M85 345l14-14h133l20 20v68l-15 15H85z"/>
+    <path d="M1183 676l16-16h146v79l-13 13h-149z"/>
+  </g>
+  <g fill="#35465a">
+    <path d="M102 356h3v34h-3zm7 0h2v34h-2zm6 0h5v34h-5zm10 0h2v34h-2zm6 0h3v34h-3zm8 0h5v34h-5zm9 0h2v34h-2zm6 0h4v34h-4zm8 0h2v34h-2zm6 0h5v34h-5zm10 0h3v34h-3zm7 0h2v34h-2zm6 0h4v34h-4zm8 0h2v34h-2z"/>
+    <path d="M1246 682h77v2h-77zm0 6h77v4h-77zm0 8h77v2h-77zm0 6h77v5h-77zm0 9h77v2h-77zm0 7h77v3h-77z"/>
+  </g>
+  <g fill="#008b8f"><path d="M104 411h8v8h-8zm13 0h8v8h-8zm1168 178h9v9h-9zM318 149h8v8h-8z"/></g>
+  <g fill="#cf552d"><path d="M1113 148h7v7h-7zm-986 487h7v7h-7zM1203 684h9v9h-9z"/></g>
+  <path fill="#425165" fill-opacity=".11" filter="url(#grain)" d="M0 0h1440v900H0z" opacity=".11"/>
+</svg>

@@ -1,7 +1,7 @@
-export function createCave(T) {
+export function createCave(T, shorelineZ) {
   const scene = new T.Scene();
   scene.background = new T.Color('#08232d');
-  scene.fog = new T.FogExp2('#0b303c', .046);
+  scene.fog = new T.FogExp2('#0b303c', .039);
   function makeSparkleMaterial(color, opacity) {
     return new T.ShaderMaterial({
       transparent:true, depthWrite:false, blending:T.AdditiveBlending,
@@ -102,7 +102,8 @@ export function createCave(T) {
     return .045 * Math.sin(x*.57 + z*.16) + .035 * Math.sin(z*.48) * Math.cos(x*.36);
   }
 
-  const floor = new T.PlaneGeometry(28, 62, 86, 130).rotateX(-Math.PI / 2).translate(-3, 0, -17);
+  const floor = new T.PlaneGeometry(28, 14 - shorelineZ, 86, 54).rotateX(-Math.PI / 2)
+    .translate(-3, 0, (14 + shorelineZ) / 2);
   const floorPoints = floor.attributes.position;
   const floorColors = [];
   const mossTint = new T.Color();
@@ -117,19 +118,25 @@ export function createCave(T) {
   floor.computeVertexNormals();
   mesh(floor, mossFloor, 0, 0, 0);
 
-  // An irregular arch sweeps through the clearing into a narrower, curving tunnel.
-  const positions = [], uvs = [], indices = [];
-  const rings = 112, sections = 56;
-  for (let ring = 0; ring <= rings; ring++) {
-    const z = 14 - ring * .55;
+  function archPoint(angle, z, target) {
     const distance = Math.max(0, -z - 6);
     const center = -1.2 - Math.min(distance * .29, 7);
     const radius = 9.5 - 4.6 * Math.min(distance / 25, 1);
     const height = 9.8 - 4.4 * Math.min(distance / 26, 1);
+    const rough = .57 * Math.sin(angle * 13 + z * .42) + .35 * Math.cos(angle * 24 - z * .79)
+      + .17 * Math.sin(angle * 42 + z * 2.9);
+    return target.set(center + (radius + rough) * Math.cos(angle), -.45 + (height + rough) * Math.sin(angle));
+  }
+
+  // The lake vault uses this same profile at the join.
+  const positions = [], uvs = [], indices = [];
+  const rings = 52, sections = 56;
+  const arch = new T.Vector2();
+  for (let ring = 0; ring <= rings; ring++) {
+    const z = T.MathUtils.lerp(14, shorelineZ, ring / rings);
     for (let section = 0; section <= sections; section++) {
-      const angle = section / sections * Math.PI;
-      const rough = .57*Math.sin(angle*13 + z*.42) + .35*Math.cos(angle*24 - z*.79) + .17*Math.sin(angle*42 + z*2.9);
-      positions.push(center + (radius+rough)*Math.cos(angle), -.45+(height+rough)*Math.sin(angle), z);
+      archPoint(section / sections * Math.PI, z, arch);
+      positions.push(arch.x, arch.y, z);
       uvs.push(section/sections*8.3, ring*.15);
       if (ring && section) {
         const p = ring*(sections+1)+section;
@@ -144,9 +151,8 @@ export function createCave(T) {
   shell.computeVertexNormals();
   rock.side = T.DoubleSide;
   mesh(shell, rock, 0, 0, 0);
-  mesh(rubble,boulder,-8,2.4,-44,5.8,4.7,4.4);
 
-  for (let i = 0; i < 34; i++) {
+  for (let i = 0; 6 - i * 1.45 > shorelineZ + .9; i++) {
     const z = 6 - i * 1.45;
     const curve = Math.min(Math.max(0, -z - 6) * .29, 7);
     const width = 9.4 - Math.min(Math.max(0, -z - 6) / 25, 1)*4.6;
@@ -157,21 +163,21 @@ export function createCave(T) {
     }
   }
   for (let i = 0; i < 46; i++) {
-    const z = 8-random()*46;
+    const z = 8-random()*15;
     const x = (random() < .55 ? 1 : -1)*(4.8+random()*3.8) - Math.max(0,-z-8)*.22;
     const size = .25 + random()*.8;
     mesh(rubble, boulder, x, groundHeight(x,z)-.12, z, size*1.8,size*.65,size).rotation.y=random()*6;
   }
-  for (let i = 0; i < 16; i++) {
+  for (let i = 0; i < 7; i++) {
     const z = 3 - i*1.8;
-    const right = i < 8;
+    const right = i % 2 === 0;
     const x = right ? 7.2 : -10.5-Math.max(0,-z-8)*.17;
     tube([[x,8,z],[x+(right?-.4:.8),5,z+.3],[x+(right?-1:1.4),2,z+.65],
       [x+(right?-3:3),groundHeight(x,z)+.05,z+2.4]], .22+random()*.48, root);
   }
   for (let i = 0; i < 38; i++) {
     const x = (random()-.5)*14;
-    const z = 5-random()*26;
+    const z = 5-random()*12;
     const top = 8.8 - Math.abs(x)*.24;
     tube([[x,top,z],[x+.12,top-1,z+.13],[x-.21,top-1.5-random()*1.55,z+.17]], .018+random()*.028, root);
   }
@@ -213,11 +219,12 @@ export function createCave(T) {
   }
 
   const stem = lathe([[0,0],[.085,0],[.072,.15],[.052,.35],[.065,.64],[.097,.79],[0,.8]]);
+  stem.scale(1, .62, 1);
   const cap = lathe([[0,0],[.12,.012],[.34,.02],[.46,.052],[.49,.082],[.43,.13],[.3,.245],[.12,.29],[0,.3]]);
   const stemMaterial = new T.MeshStandardMaterial({ color:'#a2b05c', emissive:'#718329', emissiveIntensity:.28, roughness:.68 });
   const capMaterial = new T.MeshStandardMaterial({ color:'#b3d75b', emissive:'#a8e43b', emissiveIntensity:1.12, roughness:.35, transparent:true, opacity:.94 });
   const gills = new T.MeshStandardMaterial({ color:'#d1e88c', emissive:'#ccff63', emissiveIntensity:.66 });
-  const mushroomMaterials = [.14, .32, .59, 1].map(glow =>
+  const mushroomMaterials = [.26, .48, .79, 1.28].map(glow =>
     [stemMaterial, capMaterial, gills].map(material => {
       const variant = material.clone();
       variant.emissiveIntensity *= glow;
@@ -229,19 +236,96 @@ export function createCave(T) {
     const y = groundHeight(x,z);
     const plant = new T.Group();
     plant.position.set(x,y,z);
-    plant.scale.setScalar(size);
+    plant.scale.setScalar(size * .8);
     plant.rotation.z=(random()-.5)*.31;
     group.add(plant);
     const brightness = random();
     const level = brightness < .4 ? 0 : brightness < .75 ? 1 : brightness < .94 ? 2 : 3;
     const [stalk, canopy, underside] = mushroomMaterials[level];
     mesh(stem,stalk,0,0,0,1,1,1,plant);
-    mesh(cap,canopy,0,.74,0,1,1,1,plant);
-    mesh(gillGeometry,underside,0,.757,0,1,1,1,plant);
+    mesh(cap,canopy,0,.46,0,1,.85,1,plant);
+    mesh(gillGeometry,underside,0,.474,0,1,1,1,plant);
     return plant;
   }
   for(let i=0;i<19;i++) mushroom(4.15+random()*1.75,-3.8+random()*2,[.25,.49,.82][i%3]*(.8+random()*.3));
-  for(let i=0;i<16;i++) mushroom(-4.7+random()*2.6,-6.7-i*.74,.14+random()*.27);
+  for(let i=0;i<10;i++) mushroom(-4.7+random()*2.6,-1.7-i*.58,.14+random()*.27);
+
+  // Leaf blades share geometry and draw in batches, while their shapes and tints vary by patch.
+  const foliageMaterial = new T.MeshStandardMaterial({ roughness: .88, side: T.DoubleSide });
+  function leafGeometry(fern) {
+    const vertices = [];
+    function leaf(x, y, z, tipX, tipY, tipZ, width) {
+      const midX = (x + tipX) / 2, midY = (y + tipY) / 2, midZ = (z + tipZ) / 2;
+      vertices.push(x,y,z, midX-width,midY,midZ, tipX,tipY,tipZ,
+        x,y,z, tipX,tipY,tipZ, midX+width,midY,midZ);
+    }
+    if (fern) {
+      leaf(0,0,0, 0,.37,.52, .014);
+      for (let i = 1; i <= 6; i++) {
+        const t = i / 7;
+        for (const side of [-1, 1]) {
+          leaf(0,.37*t,.52*t, side*.18*(1-t*.72),.37*t+.05,.52*t+.12, .032*(1-t*.5));
+        }
+      }
+    } else {
+      for (const offset of [-.16, -.08, .025, .09, .16]) {
+        leaf(offset*.25,0,0, offset,.42 + Math.abs(offset),.08 + offset*.2, .021);
+      }
+    }
+    const geometry = new T.BufferGeometry();
+    geometry.setAttribute('position', new T.Float32BufferAttribute(vertices, 3));
+    geometry.computeVertexNormals();
+    return geometry;
+  }
+
+  const patches = [];
+  for (const [near, far, count] of [[6.7, 8.5, 9], [3.5, 6.7, 22], [.48, 3.5, 47]]) {
+    for (let i = 0; i < count; i++) {
+      const z = shorelineZ + T.MathUtils.lerp(near, far, random());
+      const x = -.85 + (i % 2 ? 1 : -1) * (1.8 + random()*2.65);
+      patches.push({ x, z, reeds: near < 3.5 && i % 3 !== 0 });
+    }
+  }
+  const plant = new T.Object3D();
+  const color = new T.Color();
+  for (const reeds of [false, true]) {
+    const plants = patches.filter(patch => patch.reeds === reeds);
+    const leaves = new T.InstancedMesh(leafGeometry(!reeds), foliageMaterial, plants.length * 5);
+    let index = 0;
+    for (const { x, z } of plants) {
+      const rotation = random() * Math.PI * 2;
+      for (let i = 0; i < 5; i++) {
+        const px = x + (random() - .5)*.42, pz = z + (random() - .5)*.38;
+        plant.position.set(px, groundHeight(px, pz), pz);
+        plant.rotation.set(0, rotation + i * 1.26, 0);
+        plant.scale.setScalar(.48 + random() * (reeds ? .76 : .94));
+        plant.updateMatrix();
+        leaves.setMatrixAt(index, plant.matrix);
+        leaves.setColorAt(index++, color.setHSL(.24 + random()*.12, .32 + random()*.24, .22 + random()*.19));
+      }
+    }
+    scene.add(leaves);
+  }
+  const mossStone = boulder.clone();
+  mossStone.color.set('#728450');
+  const stones = new T.InstancedMesh(rubble, mossStone, 26);
+  for (let i = 0; i < stones.count; i++) {
+    const { x, z } = patches[patches.length - 1 - i * 2];
+    plant.position.set(x, groundHeight(x, z) - .035, z);
+    plant.rotation.set(0, random() * Math.PI, 0);
+    const size = .11 + random()*.24;
+    plant.scale.set(size*1.5, size*.52, size);
+    plant.updateMatrix();
+    stones.setMatrixAt(i, plant.matrix);
+  }
+  scene.add(stones);
+  for (let i = 0; i < 12; i++) {
+    const { x, z } = patches[patches.length - 1 - i * 4];
+    const side = x < -.85 ? -1 : 1;
+    const y = groundHeight(x, z);
+    tube([[x,y+.05,z],[x+side*.35,y+.17,z+.31],[x+side*.87,y+.06,z+.65]], .055, root);
+    tube([[x+side*.32,y+.14,z+.3],[x+side*.53,y+.21,z+.22],[x+side*.67,y+.24,z+.15]], .024, root);
+  }
 
   const trail = new Map();
   const growth = [];
@@ -280,12 +364,12 @@ export function createCave(T) {
     lamp.position.set(x,y,z);
     scene.add(lamp);
   };
-  light('#91dbff',143,24,-3.7,6.6,1.3);
+  const leftBeamZ = -7.4;
+  light('#91dbff',143,24,-3.7,6.6,leftBeamZ+2.7);
   light('#82bfce',77,15,2.6,4.25,1.8);
   light('#b6e65c',16,7.1,5.25,.8,-2.3);
   light('#dac8a3',26,7.3,2.6,4.7,-2.35);
-  light('#3cbedf',149,21,-6,4,-15);
-  light('#42bbd7',171,24,-10,3,-28);
+  light('#3cbedf',57,14,-4,4,shorelineZ-2);
 
   const beam = new T.ShaderMaterial({
     transparent:true, depthWrite:false, side:T.DoubleSide, blending:T.AdditiveBlending,
@@ -306,7 +390,7 @@ export function createCave(T) {
     `
   });
   for(let i=0;i<4;i++) {
-    const shaft=mesh(new T.PlaneGeometry(2.4+i*.22,9),beam,-4.3+i*.25,4.8,-1.4+i*.31);
+    const shaft=mesh(new T.PlaneGeometry(2.4+i*.22,9),beam,-4.3+i*.25,4.8,leftBeamZ+i*.31);
     shaft.rotation.set(-.12,.4*i,.31);
   }
   const haze = new T.ShaderMaterial({
@@ -329,7 +413,7 @@ export function createCave(T) {
   for(let i=0;i<dust.length;i+=3) {
     dust[i]=(random()-.5)*14-2;
     dust[i+1]=.3+random()*6.8;
-    dust[i+2]=5-random()*35;
+    dust[i+2]=5-random()*13;
     dustSizes[i/3]=.07+random()*.13;
     dustPhases[i/3]=random()*Math.PI*2;
   }
@@ -340,25 +424,8 @@ export function createCave(T) {
   const spores=new T.Points(dustGeometry,makeSparkleMaterial('#b5f4ff',.68));
   scene.add(spores);
 
-  const exitX = -4.8, exitZ = -19.5;
-  const exitGlow = new T.MeshBasicMaterial({ color: new T.Color(1.7, .92, .37) });
-  for (const x of [exitX - 1.4, exitX + 1.4]) {
-    const y = groundHeight(x, exitZ);
-    mesh(rubble, boulder, x, y + .18, exitZ, .24, .62, .27);
-    mesh(new T.OctahedronGeometry(.13), exitGlow, x, y + .72, exitZ);
-    const light = new T.PointLight('#ffbc68', 5, 3.4);
-    light.position.set(x, y + .72, exitZ);
-    scene.add(light);
-  }
-
-  function atExit(player) {
-    return player.position.z <= exitZ && Math.abs(player.position.x - exitX) <= 1.3;
-  }
-
   function canMove(x,z) {
-    if(z < -20 || z > 5.8) return false;
-    const bend=Math.max(0,-z-7);
-    if(x < -7.2-bend*.19 || x > 5.2-bend*.37) return false;
+    if (z < shorelineZ || z > 5.8 || x < -7.2 || x > 5.2) return false;
     return !robot?.parent || !insideRobotFootprint(x, z);
   }
   function update(time,dt,player) {
@@ -374,5 +441,5 @@ export function createCave(T) {
       if(fraction===1) growth.splice(i,1);
     }
   }
-  return { scene, placeRobot, makeSparkleMaterial, groundHeight, canMove, atExit, leaveTrail, batteryPoints, update };
+  return { scene, placeRobot, makeSparkleMaterial, groundHeight, archPoint, canMove, leaveTrail, batteryPoints, update };
 }

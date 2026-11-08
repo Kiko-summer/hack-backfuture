@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1360" height="760" viewBox="0 0 1360 760">
+  <defs>
+    <linearGradient id="sky" x2="0" y2="1">
+      <stop stop-color="#02061d"/><stop offset=".48" stop-color="#071648"/>
+      <stop offset=".81" stop-color="#153bbb"/><stop offset="1" stop-color="#4c97fb"/>
+    </linearGradient>
+    <radialGradient id="horizon">
+      <stop stop-color="#8ffaff" stop-opacity=".9"/><stop offset=".37" stop-color="#2aabff" stop-opacity=".52"/>
+      <stop offset="1" stop-color="#214dfc" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="planet" x2="0" y2="1">
+      <stop stop-color="#090b54" stop-opacity=".95"/><stop offset=".68" stop-color="#12186f" stop-opacity=".24"/>
+      <stop offset="1" stop-color="#2065ff" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="rim" x2=".32" y2="1">
+      <stop stop-color="#3549ff" stop-opacity=".65"/><stop offset=".43" stop-color="#1af0ff"/>
+      <stop offset="1" stop-color="#3956ff" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="water" x2="0" y2="1">
+      <stop stop-color="#091340"/><stop offset=".5" stop-color="#040e2c"/><stop offset="1" stop-color="#020613"/>
+    </linearGradient>
+    <linearGradient id="streak">
+      <stop stop-color="#3263ff" stop-opacity="0"/><stop offset=".48" stop-color="#85eaff"/>
+      <stop offset="1" stop-color="#4385ff" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="bloom" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="12"/></filter>
+    <pattern id="dust" width="223" height="157" patternUnits="userSpaceOnUse">
+      <g fill="#8ac7ff" opacity=".55">
+        <circle cx="17" cy="49" r="1"/><circle cx="42" cy="101" r=".7"/><circle cx="59" cy="18" r="1.15"/>
+        <circle cx="75" cy="136" r="1"/><circle cx="106" cy="74" r="1.3"/><circle cx="124" cy="121" r=".6"/>
+        <circle cx="137" cy="37" r=".8"/><circle cx="151" cy="94" r=".9"/><circle cx="162" cy="146" r="1"/>
+        <circle cx="181" cy="23" r="1.1"/><circle cx="191" cy="67" r=".55"/><circle cx="210" cy="116" r="1"/>
+      </g>
+    </pattern>
+    <path id="star" d="M0-20Q3-4 20 0Q3 4 0 20Q-3 4-20 0Q-3-4 0-20Z"/>
+  </defs>
+  <path fill="url(#sky)" d="M0 0h1360v463H0z"/>
+  <ellipse cx="674" cy="370" rx="558" ry="221" fill="url(#horizon)"/>
+  <path d="M248 413C215 147 402 27 632 17C865 7 1084 153 1093 412Z" fill="url(#planet)"/>
+  <path d="M248 413C215 147 402 27 632 17C865 7 1084 153 1093 412" fill="none" stroke="url(#rim)" stroke-width="17" filter="url(#bloom)"/>
+  <path d="M248 413C215 147 402 27 632 17C865 7 1084 153 1093 412" fill="none" stroke="url(#rim)" stroke-width="2.8"/>
+  <path fill="url(#dust)" d="M0 0h1360v463H0z"/>
+  <path d="M0 393L107 426L200 436L283 398L348 431L429 423L503 453L564 435L607 457L701 445L782 425L851 405L948 444L1023 428L1107 438L1247 406L1360 371V463H0Z" fill="#193793"/>
+  <path d="M0 428L138 449L219 431L277 419L370 452L452 441L565 458L633 445L719 459L831 423L898 433L978 453L1118 442L1262 420L1360 408V463H0Z" fill="#101c60" stroke="#6fc2ff" stroke-opacity=".36"/>
+  <path fill="url(#water)" d="M0 462h1360v298H0z"/>
+  <ellipse cx="683" cy="504" rx="340" ry="89" fill="url(#horizon)" opacity=".53"/>
+  <g stroke="url(#streak)" fill="none" stroke-linecap="round">
+    <path d="M417 466H941M440 480H786M600 486H996M334 497H792M524 510H949M433 524H861M614 549H902M467 578H790M578 619H834" stroke-width="2" opacity=".78"/>
+    <path d="M542 474H801M552 502H808M504 535H925M582 558H771M425 599H870M510 651H815" stroke-width="3" opacity=".5"/>
+    <path d="M72 494h342m546 20h301M103 560h460m285 39h360M23 667h591m149 29h521" opacity=".23"/>
+  </g>
+  <g fill="none" stroke="#61a7ff" opacity=".37">
+    <path d="M316 196l62 51 55-39 72 66M850 244l62-62 83 33 57-68"/>
+    <ellipse cx="680" cy="270" rx="320" ry="66" transform="rotate(-12 680 270)" stroke-dasharray="90 19 3 10"/>
+    <path d="M1194 115l-89 141" stroke-width="2"/>
+  </g>
+  <g fill="#40beff" filter="url(#bloom)">
+    <use href="#star" transform="translate(511 425) scale(2.3)"/><use href="#star" transform="translate(846 395) scale(1.7)"/>
+    <use href="#star" transform="translate(431 181) scale(1.4)"/><use href="#star" transform="translate(938 164) scale(1.3)"/>
+  </g>
+  <g fill="#e1faff">
+    <use href="#star" transform="translate(511 425) scale(1.52)"/><use href="#star" transform="translate(846 395) scale(1.02)"/>
+    <use href="#star" transform="translate(431 181) scale(.75)"/><use href="#star" transform="translate(938 164) scale(.68)"/>
+    <use href="#star" transform="translate(379 247) scale(.31)"/><use href="#star" transform="translate(576 118) scale(.38)"/>
+    <use href="#star" transform="translate(786 94) scale(.34)"/><use href="#star" transform="translate(995 215) scale(.43)"/>
+    <use href="#star" transform="translate(614 369) scale(.32)"/><use href="#star" transform="translate(746 361) scale(.49)"/>
+    <use href="#star" transform="translate(1135 329) scale(.42)"/><use href="#star" transform="translate(219 328) scale(.32)"/>
+  </g>
+</svg>
